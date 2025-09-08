@@ -1,3 +1,4 @@
+// src/ui/Field.tsx
 type Props = {
   label: string;
   value?: string;
@@ -9,7 +10,12 @@ type Props = {
   suffix?: string;
   placeholder?: string;
   disabled?: boolean;
+
+  // NEW: forward raw handlers so wrappers like SIField can intercept
+  onKeyDown?: (e: KeyboardEvent) => void;
+  onPaste?: (e: ClipboardEvent) => void;
 };
+
 export function Field(p: Props) {
   return (
     <label class="field">
@@ -24,6 +30,8 @@ export function Field(p: Props) {
           max={p.max}
           placeholder={p.placeholder}
           disabled={p.disabled}
+          onKeyDown={p.onKeyDown as any}
+          onPaste={p.onPaste as any}
         />
         {p.suffix && <span class="badge">{p.suffix}</span>}
       </div>
