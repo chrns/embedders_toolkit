@@ -65,3 +65,67 @@
   border:1px solid #2a2f3a; background:#121620; color:var(--text);
 }
 .back-btn:hover { border-color: var(--accent); color: #fff; }
+
+input:disabled { opacity: .6; cursor: not-allowed; }
+
+/* LED Vf combobox */
+.vf-combo { display:flex; flex-direction:column; gap:6px; }
+.vf-btn {
+  display:flex; align-items:center; gap:10px;
+  width:100%; padding:10px 12px; border-radius:10px;
+  background:#0f1218; color:var(--text);
+  border:1px solid #2a2f3a; text-align:left;
+}
+.vf-btn:hover { border-color: var(--accent); }
+.dot { width:18px; height:18px; border-radius:50%; border:1px solid #2a2f3a; flex:0 0 auto; }
+.dot-gradient { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+.vf-text { display:flex; flex-direction:column; line-height:1.1; }
+.vf-sub { font-size:12px; color: var(--sub); }
+.chev { margin-left:auto; opacity:.8; }
+.vf-pop {
+  position:relative; z-index:10; margin-top:6px;
+  border:1px solid #2a2f3a; background:#0f1218; border-radius:12px; overflow:hidden;
+}
+.vf-opt {
+  display:grid; grid-template-columns: 22px 1fr auto; align-items:center;
+  gap:10px; width:100%; padding:10px 12px; color:var(--text);
+}
+.vf-opt[aria-selected="true"] { background:#162032; }
+.vf-opt:hover { background:#121a2b; }
+.vf-range { font-size:12px; color:var(--sub); }
+
+/* Dropdown dark theme styles */
+.vf-pop {
+  background: var(--bg);
+  border-radius: 0.5em;
+  box-shadow: 0 2px 16px 0 rgba(0,0,0,0.23);
+  padding: 0.25em 0;
+}
+.vf-opt {
+  background: var(--bg);
+  color: var(--text);
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 0.5em 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vf-opt:hover, .vf-opt[aria-selected="true"] {
+  background: var(--hover);
+}
+.vf-opt .dot {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  margin-right: 0.5em;
+}
+.vf-opt .dot-gradient {
+  background: linear-gradient(135deg, #ff2a2a 0%, #ffd400 100%);
+}
+
+/* Remove any forced white backgrounds on .vf-opt (if present elsewhere) */

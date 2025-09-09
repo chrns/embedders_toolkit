@@ -1,4 +1,4 @@
-export function ResultCard(props: { rows: { label: string; value: string }[] }) {
+export function ResultCard(props: { rows: { label: preact.ComponentChildren; value: string }[] }) {
   return (
     <div class="panel result-card">
       {props.rows.map(r => (
