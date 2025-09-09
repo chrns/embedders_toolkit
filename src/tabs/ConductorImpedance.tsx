@@ -101,7 +101,7 @@ export default function ConductorImpedance() {
           <Slider label="Ambient Temp (°C)" value={ambient} min={-20} max={80} onInput={setAmbient} />
           <div class="flex gap-2">
             <button class="button">Solve!</button>
-            <button class="button ghost">Print</button>
+            {/* <button class="button ghost">Print</button> */}
           </div>
           <div class="small mt-2">Er Effective {(e_eff).toFixed(4)}</div>
           <div class="small">Total Copper Thickness {(t_m*1e6).toFixed(2)} μm</div>

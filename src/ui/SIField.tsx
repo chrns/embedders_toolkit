@@ -2,7 +2,7 @@
 import { Field } from './Field';
 
 type Props = {
-  label: string;
+  label: preact.ComponentChildren;
   value: string;
   setValue: (v: string) => void;
   placeholder?: string;

@@ -1,6 +1,6 @@
 // src/ui/Field.tsx
 type Props = {
-  label: string;
+  label: preact.ComponentChildren;
   value?: string;
   onInput?: (v: string) => void;
   type?: string;

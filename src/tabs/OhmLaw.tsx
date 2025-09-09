@@ -3,6 +3,7 @@ import { Panel } from '@/ui/Panel';
 import { ResultCard } from '@/ui/ResultCard';
 import { SubTabs } from '@/ui/SubTabs';
 import { SIField } from '@/ui/SIField';
+import { Field } from '@/ui/Field';
 import { parseSI, formatSI } from '@/lib/si';
 import { LEDVfSelect } from '@/ui/LEDVfSelect';
 
@@ -61,21 +62,21 @@ export default function OhmsLaw() {
           <SubTabs
             tabs={[
               { key: 'led', label: 'LED' },
-              { key: 'r_series', label: 'R Series' },
-              { key: 'r_parallel', label: 'R Parallel' },
-              { key: 'ptc', label: 'PTC' },
+              { key: 'resistor', label: 'Resistor' },
               { key: 'capacitor', label: 'Capacitor' },
-              { key: 'inductor', label: 'Inductor' }
+              { key: 'inductor', label: 'Inductor' },
+              { key: 'ntc', label: 'NTC' },
+              { key: 'rlc', label: 'Divider' }
             ]}
             active={tab}
             onSelect={setTab}
           />
           {tab === 'led' && <Led/>}
-          {tab === 'r_series' && <RSeries/>}
-          {tab === 'r_parallel' && <RParallel/>}
-          {tab === 'ptc' && <PTCStub/>}
-          {tab === 'capacitor' && <Capacitor/>}
-          {tab === 'inductor' && <Inductor/>}
+          {tab === 'resistor' && <ResistorTab/>}
+          {tab === 'capacitor' && <CapacitorTab/>}
+          {tab === 'inductor' && <InductorTab/>}
+          {tab === 'ntc' && <NTCTab/>}
+          {tab == 'rlc' && <RLCTab/>}
         </Panel>
       </div>
     </div>
@@ -131,56 +132,298 @@ function Led() {
   );
 }
 
-function RSeries() {
-  const [a, setA] = useState('100');
-  const [b, setB] = useState('220');
-  const [c, setC] = useState('330');
-
-  const R = (parseSI(a) || 0) + (parseSI(b) || 0) + (parseSI(c) || 0);
-  return (
-    <div class="grid cols-2">
-      <div class="grid">
-        <SIField label="R1" value={a} setValue={setA} suffix="Ω" />
-        <SIField label="R2" value={b} setValue={setB} suffix="Ω" />
-        <SIField label="R3" value={c} setValue={setC} suffix="Ω" />
-      </div>
-      <ResultCard rows={[{label:'Total Resistance', value: R.toFixed(3) + ' Ω'}]} />
-    </div>
-  );
-}
-
-function RParallel() {
-  const [a, setA] = useState('1000');
-  const [b, setB] = useState('1000');
-  const [c, setC] = useState('');
-
-  const inv = (x:number)=> x>0? 1/x : 0;
-  const R = 1 / (
-    inv(parseSI(a) || 0) +
-    inv(parseSI(b) || 0) +
-    inv(parseSI(c) || 0)
-  );
-
-  return (
-    <div class="grid cols-2">
-      <div class="grid">
-        <SIField label="R1" value={a} setValue={setA} suffix="Ω" />
-        <SIField label="R2" value={b} setValue={setB} suffix="Ω" />
-        <SIField label="R3" value={c} setValue={setC} suffix="Ω" />
-      </div>
-      <ResultCard rows={[{label:'Total Resistance', value: (isFinite(R)?R:0).toFixed(3) + ' Ω'}]} />
-    </div>
-  );
-}
-
 function PTCStub() {
   return <div class="small">PTC calculator stub — add your curve model later.</div>;
 }
 
-function Capacitor() {
-  return <div class="small">PTC calculator stub — add your curve model later.</div>;
+function ResistorTab() {
+  // comma-separated capacitances, SI-friendly
+  const [list, setList] = useState('10k, 4k7, 1M');
+  const [voltage, setVoltage] = useState('5');
+
+  // Parse values like "10k, 4k7, 1M" -> [1e4, 4.7e3, 1e6]
+  const res: number[] = list
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0);
+
+  const V = parseSI(voltage) ?? 0;
+
+  // Series: sum
+  const Rser = res.reduce((a, c) => a + c, 0);
+
+  // Parallel: 1 / (sum 1/Ri)
+  const Rpar = (() => {
+    const denom = res.reduce((a, c) => a + (1 / c), 0);
+    return denom > 0 ? 1 / denom : 0;
+  })();
+
+  // FIXME: for every resistor!
+  const Ppar = V * V / Rpar;
+  const Pser = V * V / Rser;
+
+  return (
+    <div class="grid cols-2">
+      <div class="flex flex-col gap-3">
+        <Field
+          label="Resistors (comma-separated)"
+          value={list}
+          onInput={setList}
+          type="text"
+          placeholder="e.g. 10k, 4k7, 1M"
+        />
+        <SIField
+          label="Voltage"
+          value={voltage}
+          setValue={setVoltage}
+          suffix="V"
+          placeholder="e.g. 5"
+        />
+      </div>
+
+      <ResultCard
+        rows={[
+          {
+            label: 'Parallel',
+            value: `${formatSI(Rpar, 'Ω')}  —  P=${formatSI(Ppar, 'W')}`
+          },
+          {
+            label: 'Series',
+            value: `${formatSI(Rser, 'Ω')}  —  P=${formatSI(Pser, 'W')}`
+          }
+        ]}
+      />
+    </div>
+  );
 }
 
-function Inductor() {
-  return <div class="small">PTC calculator stub — add your curve model later.</div>;
+function CapacitorTab() {
+  // comma-separated capacitances, SI-friendly
+  const [list, setList] = useState('10n, 100n, 1u');
+  const [voltage, setVoltage] = useState('5');
+
+  // Parse values like "10n,100n,1u" -> [1e-8, 1e-7, 1e-6]
+  const caps: number[] = list
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0);
+
+  const V = parseSI(voltage) ?? 0;
+
+  // Parallel: sum
+  const Cpar = caps.reduce((a, c) => a + c, 0);
+
+  // Series: 1 / (sum 1/Ci)
+  const Cser = (() => {
+    const denom = caps.reduce((a, c) => a + (1 / c), 0);
+    return denom > 0 ? 1 / denom : 0;
+  })();
+
+  const Qpar = Cpar * V; // Coulombs
+  const Qser = Cser * V;
+
+  return (
+    <div class="grid cols-2">
+      <div class="flex flex-col gap-3">
+        <Field
+          label="Capacitors (comma-separated)"
+          value={list}
+          onInput={setList}
+          type="text"
+          placeholder="e.g. 10n, 100n, 1u"
+        />
+        <SIField
+          label="Voltage"
+          value={voltage}
+          setValue={setVoltage}
+          suffix="V"
+          placeholder="e.g. 5"
+        />
+      </div>
+
+      <ResultCard
+        rows={[
+          {
+            label: 'Parallel',
+            value: `${formatSI(Cpar, 'F')}  —  Q=${formatSI(Qpar, 'C')}`
+          },
+          {
+            label: 'Series',
+            value: `${formatSI(Cser, 'F')}  —  Q=${formatSI(Qser, 'C')}`
+          }
+        ]}
+      />
+    </div>
+  );
 }
+
+function InductorTab() {
+  // comma-separated capacitances, SI-friendly
+  const [list, setList] = useState('10n, 100n, 1u');
+  const [current, setCurrent] = useState('100m');
+
+  // Parse values like "10n,100n,1u" -> [1e-8, 1e-7, 1e-6]
+  const inducs: number[] = list
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0);
+
+  const I = parseSI(current) ?? 0;
+
+  // Series: sum
+  const Lser = inducs.reduce((a, c) => a + c, 0);
+
+  // Parallel: 1 / (sum 1/Li)
+  const Lpar = (() => {
+    const denom = inducs.reduce((a, c) => a + (1 / c), 0);
+    return denom > 0 ? 1 / denom : 0;
+  })();
+
+  const Qpar = (I * I * Lpar) / 2;
+  const Qser = (I * I * Lser) / 2;
+
+  return (
+    <div class="grid cols-2">
+      <div class="flex flex-col gap-3">
+        <Field
+          label="Inductors (comma-separated)"
+          value={list}
+          onInput={setList}
+          type="text"
+          placeholder="e.g. 10n, 100n, 1u"
+        />
+        <SIField
+          label="Current"
+          value={current}
+          setValue={setCurrent}
+          suffix="A"
+          placeholder="e.g. 100m"
+        />
+      </div>
+
+      <ResultCard
+        rows={[
+          {
+            label: 'Parallel',
+            value: `${formatSI(Lpar, 'H')}  —  W=${formatSI(Qpar, 'J')}`
+          },
+          {
+            label: 'Series',
+            value: `${formatSI(Lser, 'H')}  —  W=${formatSI(Qser, 'J')}`
+          }
+        ]}
+      />
+    </div>
+  );
+}
+
+type RLC_Solver = 'R' | 'L' | 'C';
+
+function RLCTab() {
+  const [rlcSolveFor, setRlcSolveFor] = useState<RLC_Solver>('R');
+  const [Voltage, setVoltage] = useState('3.3');
+  const [Value1, setValue_1] = useState('1');
+  const [Value2, setValue_2] = useState('1');
+  const suffixMap: Record<RLC_Solver, string> = { R: 'Ω', L: 'H', C: 'F' };
+
+  const Result = 0;
+
+  const solved = useMemo(() => {
+    const voltage = parseSI(Voltage) ?? 0;
+    const val1 = parseSI(Value1) ?? 0;
+    const val2 = parseSI(Value2) ?? 0;
+
+    let out = { Result }
+    try {
+      if (rlcSolveFor === 'R') out.Result = voltage * (val2 / (val1 + val2));
+      if (rlcSolveFor === 'L') out.Result = voltage * (val2 / (val1 + val2));
+      if (rlcSolveFor === 'C') out.Result = voltage * (val2 / (val1 + val2)); // FIXME
+    } catch {}
+    return out;
+  }, [rlcSolveFor, Voltage, Value1, Value2]);
+
+  return (
+    <div class="grid cols-2">
+      <div class="flex flex-col gap-3">
+          <div class="tabs">
+            {(['R','L','C'] as RLC_Solver[]).map(k => (
+              <button class="tab-btn" aria-selected={rlcSolveFor===k} onClick={()=>setRlcSolveFor(k)}>{k}</button>
+            ))}
+          </div>
+          <div class="grid cols-2">
+            <SIField
+              label={<>{rlcSolveFor}<sub>1</sub></>}
+              value={Value1}
+              setValue={setValue_1}
+              placeholder="10k"
+              suffix={suffixMap[rlcSolveFor]}
+            />
+            <SIField
+              label={<>{rlcSolveFor}<sub>2</sub></>}
+              value={Value2}
+              setValue={setValue_2}
+              placeholder="10k"
+              suffix={suffixMap[rlcSolveFor]}
+            />
+            <SIField label="Voltage" value={Voltage} setValue={setVoltage} placeholder="3.3" suffix='V' />
+          </div>
+        </div>
+        
+        <ResultCard rows={[
+          { label: <>V<sub>out</sub></>, value: formatSI(solved.Result, ' V') }
+        ]} />
+    </div>
+  );
+}
+
+
+function NTCTab() {
+  const [RCalib, setRCalib] = useState('10k');
+  const [TCalib, setTCalib] = useState('25');
+  const [Beta, setBeta] = useState('4000');
+  const [Tolerance, setTolerance] = useState('1');
+  const [TTarget, setTTarget] = useState('75');
+
+  const R = parseSI(RCalib) ?? 0;
+  const T = parseSI(TCalib) ?? 0;
+  const B = parseSI(Beta) ?? 0;
+  const Tol = parseSI(Tolerance) ?? 0;
+  const TTar = parseSI(TTarget) ?? 0;
+  
+  const TypicalR = R * Math.pow(2.71828, B * (1 / (TTar + 273.15) - 1 / (T + 273.15)));
+  const MinR = (1 - Tol / 100) * TypicalR ;
+  const MaxR = (1 + Tol / 100) * TypicalR;
+
+  return (
+    <div class="grid cols-2">
+      <div class="grid">
+        <SIField label="Calibration resistance" value={RCalib} setValue={setRCalib} suffix="Ω" />
+        <SIField label="Calibration temperature" value={TCalib} setValue={setTCalib} suffix="°C" />
+        <SIField label="Thermistor beta" value={Beta} setValue={setBeta} suffix="K" />
+        <SIField label="Tolerance" value={Tolerance} setValue={setTolerance} suffix="%" />
+        <SIField label="Target temperature" value={TTarget} setValue={setTTarget} suffix="°C" />
+      </div>
+      <ResultCard rows={[
+        {
+          label:'Typical resistance at 75 °C',
+          value: `${formatSI(TypicalR, 'Ω')}`
+        },
+        {
+          label:'Min resistance',
+          value: `${formatSI(MinR, 'Ω')}`
+        },
+        {
+          label:'Max resistance',
+          value: `${formatSI(MaxR, 'Ω')}`
+        }
+        ]} />
+    </div>
+  );
+}
+
