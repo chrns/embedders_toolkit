@@ -1,4 +1,4 @@
-# Embedder's toolkit
+# Embedder's Toolkit
 
 Bring calculation on the client side.
 

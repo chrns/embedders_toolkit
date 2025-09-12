@@ -1,6 +1,7 @@
 import { useLocation } from 'wouter';
 import { SupportButton } from './SupportButton';
 import { ComponentChildren } from 'preact';
+import { ThemeToggle } from '@/ui/ThemeToggle';
 
 export function AppShell(props: { children: ComponentChildren }) {
   const [loc, setLoc] = useLocation();
@@ -10,16 +11,20 @@ export function AppShell(props: { children: ComponentChildren }) {
   return (
     <div>
       <header class="topbar">
+
         <div class="flex items-center gap-3">
           {showBack && (
             <button class="back-btn" aria-label="Back to home" onClick={() => setLoc('/')}>
               <svg width="18" height="18" viewBox="0 0 24 24">
-                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
           )}
           <div class="brand">Embedder’s Toolkit</div>
+        </div>
+        <div class="flex items-center gap-2">
           <SupportButton href="https://github.com/sponsors/chrns" />
+          <ThemeToggle />
         </div>
       </header>
 
