@@ -2,6 +2,7 @@ import { useLocation } from 'wouter';
 import { SupportButton } from './SupportButton';
 import { ComponentChildren } from 'preact';
 import { ThemeToggle } from '@/ui/ThemeToggle';
+import { UpdateToast } from '@/ui/UpdateToast';
 
 export function AppShell(props: { children: ComponentChildren }) {
   const [loc, setLoc] = useLocation();
@@ -31,7 +32,17 @@ export function AppShell(props: { children: ComponentChildren }) {
       <div class="layout">
         <div class="content">{props.children}</div>
       </div>
-      <div class="footer">PWA-ready</div>
+      <UpdateToast />
+      <span>
+        PWA-ready • {
+          (() => {
+            const ver = (typeof __APP_VERSION__ !== 'undefined'
+              ? __APP_VERSION__
+              : (import.meta as any).env?.VITE_APP_VERSION ?? 'dev');
+            return /^v?\d/.test(ver) ? `v${ver.replace(/^v/, '')}` : ver;
+          })()
+        }
+      </span>
     </div>
   );
 }
