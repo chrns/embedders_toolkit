@@ -30,7 +30,7 @@ V_{out} = V_{in} \cdot \frac{X_{C_2}}{X_{C_1} + X_{C_2}}
 
 # Impedance
 
-Using IPC-2141
+Using IPC-2141 formulas
 
 ## Microstrip
 
