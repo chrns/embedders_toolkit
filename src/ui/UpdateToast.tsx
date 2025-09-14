@@ -1,6 +1,4 @@
-
-
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState, useRef } from 'preact/hooks';
 
 /**
  * UpdateToast — shows a small banner when a new PWA version is available.
@@ -13,6 +11,7 @@ export function UpdateToast() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
   const [visible, setVisible] = useState(false);
   const [shouldReload, setShouldReload] = useState(false);
+  const waitingUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -32,6 +31,7 @@ export function UpdateToast() {
       const asked = shouldReload || sessionStorage.getItem('sw-skipwaiting-clicked') === '1';
       if (asked) {
         try { sessionStorage.removeItem('sw-skipwaiting-clicked'); } catch {}
+        try { localStorage.removeItem('sw-notified'); } catch {}
         // Hard navigation helps Safari/iOS avoid reload loops
         window.location.replace(window.location.href);
       }
@@ -61,16 +61,26 @@ export function UpdateToast() {
         newSW.addEventListener('statechange', () => {
           // If there's already a controller, an installed SW means an update
           if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-            setWaitingSW(newSW);
-            setVisible(true);
+            const url = (newSW as any).scriptURL as string | undefined;
+            waitingUrlRef.current = url ?? null;
+            const lastNotified = (() => { try { return localStorage.getItem('sw-notified'); } catch { return null; } })();
+            if (!url || lastNotified !== url) {
+              setWaitingSW(newSW);
+              setVisible(true);
+            }
           }
         });
       });
 
       // If an updated worker is already waiting (e.g., after a background check)
       if (reg.waiting) {
-        setWaitingSW(reg.waiting);
-        setVisible(true);
+        const url = (reg.waiting as any).scriptURL as string | undefined;
+        waitingUrlRef.current = url ?? null;
+        const lastNotified = (() => { try { return localStorage.getItem('sw-notified'); } catch { return null; } })();
+        if (!url || lastNotified !== url) {
+          setWaitingSW(reg.waiting);
+          setVisible(true);
+        }
       }
 
       // Guarded reload to avoid iOS PWA refresh loops
@@ -120,7 +130,15 @@ export function UpdateToast() {
       >
         Reload
       </button>
-      <button class="button ghost" onClick={() => setVisible(false)}>Later</button>
+      <button
+        class="button ghost"
+        onClick={() => {
+          try {
+            if (waitingUrlRef.current) localStorage.setItem('sw-notified', waitingUrlRef.current);
+          } catch {}
+          setVisible(false);
+        }}
+      >Later</button>
     </div>
   );
 }
