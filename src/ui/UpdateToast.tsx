@@ -41,7 +41,7 @@ export function UpdateToast() {
     navigator.serviceWorker.getRegistration().then(async (reg) => {
       try {
         if (!reg) {
-          reg = await navigator.serviceWorker.register('/sw.js');
+          reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
         }
       } catch {
         // SW failed to register; bail out silently
@@ -51,6 +51,7 @@ export function UpdateToast() {
       // Check once now, also on tab focus/visibility, and hourly
       reg.update();
       document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('pageshow', onVisibility);
       intervalId = window.setInterval(() => reg?.update(), 60 * 60 * 1000);
 
       // Listen for a new worker getting installed
@@ -76,10 +77,30 @@ export function UpdateToast() {
       navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
     });
 
+    // Also use the ready registration (when the SW is already active at load)
+    navigator.serviceWorker.ready.then((readyReg) => {
+      // Run an immediate update check and on window focus (important for installed PWAs)
+      readyReg.update();
+      const onFocus = () => readyReg.update();
+      window.addEventListener('focus', onFocus);
+      // cleanup focus listener when effect unmounts
+      // (we cannot remove here; add to outer cleanup below via closure)
+      (onFocus as any)._added = true;
+      (navigator as any)._updateToastOnFocus = onFocus;
+    });
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onVisibility);
       if (intervalId) clearInterval(intervalId);
       try { navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange as any); } catch {}
+      try {
+        const onFocus = (navigator as any)._updateToastOnFocus;
+        if (onFocus && (onFocus as any)._added) {
+          window.removeEventListener('focus', onFocus);
+          delete (navigator as any)._updateToastOnFocus;
+        }
+      } catch {}
     };
   }, [shouldReload]);
 
