@@ -35,7 +35,7 @@ export default function OhmsLaw() {
   // Sub-tabs
   const [tab, setTab] = useState('led');
   return (
-    <div class="grid cols-2">
+    <div class="grid">
       <div class="flex flex-col gap-4">
         <Panel>
           <h2>Ohm’s Law</h2>

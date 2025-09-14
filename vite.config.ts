@@ -3,6 +3,15 @@ import preact from '@preact/preset-vite';
 import UnoCSS from 'unocss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import { execSync } from 'node:child_process';
+
+function getVersion() {
+  try {
+    return execSync('git describe --tags --exact-match', { encoding: 'utf8' }).trim();
+  } catch {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  }
+}
 
 export default defineConfig({
   base: '/',
@@ -28,5 +37,8 @@ export default defineConfig({
       }
     })
   ],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } }
+  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  define: {
+    __APP_VERSION__: JSON.stringify(getVersion()),
+  },
 });
