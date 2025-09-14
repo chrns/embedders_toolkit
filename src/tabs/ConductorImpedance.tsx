@@ -1,112 +1,275 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { Panel } from '@/ui/Panel';
-import { Field } from '@/ui/Field';
-import { Select } from '@/ui/Select';
-import { RadioGroup } from '@/ui/RadioGroup';
-import { Slider } from '@/ui/Slider';
 import { ResultCard } from '@/ui/ResultCard';
-import { microstripZ0 } from '@/lib/microstrip';
-import { c, inch, mil, mm } from '@/lib/units';
+import { SubTabs } from '@/ui/SubTabs';
+import { SIField } from '@/ui/SIField';
+import { Field } from '@/ui/Field';
+import { parseSI } from '@/lib/si';
+import { Select } from '@/ui/Select';
+import { pcbMaterials } from '@/lib/units';
+import {
+  microstripZoFormula,
+  striplineZoFormula,
+  embeddedMicrostripZoFormula,
+  asymmetricStriplineZoFormula,
+  edgeCoupledMicrostripZoFormula,
+  broadsideCoupledStriplineZoFormula,
+  edgeCoupledStriplineZoFormula
+ } from '@/lib/impedance';
+ import MicrostripIcon from '@/ui/icons/MicrostripIcon';
 
 type Units = 'imperial' | 'metric';
+const copperWeightsList = ['0.5oz','1oz','1.5oz','2oz','2.5oz','3oz','4oz','5oz'];
 
 export default function ConductorImpedance() {
-  const [units, setUnits] = useState<Units>('imperial');
-  const [w, setW] = useState('17'); // mils or mm
-  const [h, setH] = useState('10');
-  const [freq, setFreq] = useState('500'); // MHz
+  // options
   const [er, setEr] = useState('4.6');
-  const [material, setMaterial] = useState('FR-4 STD');
-  const [tempRise, setTempRise] = useState(20);
-  const [ambient, setAmbient] = useState(22);
+  const [material, setMaterial] = useState('FR-4 (Standard)');
   const [copper, setCopper] = useState('1oz');
 
-  // convert to meters
-  const w_m = useMemo(() => units === 'imperial' ? parseFloat(w) * mil : parseFloat(w) * mm, [w, units]);
-  const h_m = useMemo(() => units === 'imperial' ? parseFloat(h) * mil : parseFloat(h) * mm, [h, units]);
-  const t_m = useMemo(() => {
-    const oz_to_um = { '0.5oz':17.5, '1oz':35, '1.5oz':52.5, '2oz':70, '2.5oz':87.5, '3oz':105, '4oz':140, '5oz':175 };
-    const um = oz_to_um[copper as keyof typeof oz_to_um] ?? 35;
-    return um * 1e-6; // meters
-  }, [copper]);
-
-  const { Z0, e_eff } = useMemo(() => microstripZ0({
-    w: w_m || 1e-6, h: h_m || 1e-6, t: t_m, er: parseFloat(er) || 4.2
-  }), [w_m, h_m, t_m, er]);
-
-  // Per-length parameters from Z0 and velocity
-  const v = c / Math.sqrt(e_eff); // m/s
-  const Z0n = Z0 || 50;
-  const L_per_m = Z0n / v;              // H/m
-  const C_per_m = 1 / (Z0n * v);        // F/m
-
-  const per_inch = (x:number) => x * inch;
-
-  const rows = [
-    { label: 'Zo', value: `${Z0n.toFixed(4)} Ω` },
-    { label: 'Lo', value: `${(per_inch(L_per_m) * 1e9).toFixed(4)} nH/in` },
-    { label: 'Co', value: `${(per_inch(C_per_m) * 1e12).toFixed(4)} pF/in` },
-    { label: 'Tpd', value: `${(inch / v * 1e12).toFixed(4)} ps/in` }
-  ];
-
+  const [tab, setTab] = useState('microstrip');
   return (
-    <div class="grid cols-2">
+    <div class="grid">
       <div class="flex flex-col gap-4">
         <Panel>
-          <h2>Conductor Impedance</h2>
-          <div class="grid cols-2">
-            <Field label={`Conductor Width (W)`} value={w} onInput={setW} suffix={units==='imperial'?'mils':'mm'} type="number" step="any"/>
-            <Field label={`Conductor Height (H)`} value={h} onInput={setH} suffix={units==='imperial'?'mils':'mm'} type="number" step="any"/>
-            <Field label="Frequency" value={freq} onInput={setFreq} suffix="MHz" type="number" step="any"/>
-          </div>
-        </Panel>
+          <h2>Impedance Calculator</h2>
 
-        <Panel>
-          <div class="grid cols-2">
-            <img alt="microstrip diagram" src="data:image/svg+xml;utf8,               <svg xmlns='http://www.w3.org/2000/svg' width='300' height='120'>                 <rect x='10' y='80' width='280' height='20' fill='%23099'/>                 <rect x='60' y='60' width='180' height='18' rx='4' fill='%2339d'/>                 <line x1='100' y1='50' x2='200' y2='50' stroke='white'/>                 <text x='145' y='45' fill='white' font-size='12'>W</text>               </svg>" />
-            <ResultCard rows={rows} />
+          <div class="grid cols-3">
+            <Select
+              label="Base Copper Weight"
+              value={copper}
+              onChange={setCopper}
+              options={copperWeightsList.map(w => ({ label: w, value: w }))}
+            />
+
+            <Select
+              label="Material Selection"
+              value={material}
+              onChange={(v) => {
+                setMaterial(v);
+                if (v !== 'Custom') {
+                  const m = pcbMaterials.find(m => m.name === v);
+                  if (m) setEr(String(m.epsilon));
+                }
+              }}
+              options={[
+                ...pcbMaterials.map(m => ({ label: m.name, value: m.name })),
+                { label: 'Custom', value: 'Custom' },
+              ]}
+            />
+
+            <Field
+              label="Er"
+              value={er}
+              onInput={setEr}
+              type="number"
+              step={0.1}
+              disabled={material !== 'Custom'}
+            />
           </div>
+
+          <SubTabs
+            tabs={[
+              { key: 'microstrip', label: 'Microstrip' },
+              { key: 'stripline', label: 'Stripline' },
+              { key: 'embedded_microstrip', label: 'Embedded Microstrip' },
+              { key: 'async_stripline', label: 'Asymmetric Stripline' },
+              { key: 'edge_coupled_microstrip', label: 'Edge Coupled Microstrip' },
+              { key: 'broadside_coupled_stripline', label: 'Broadside Coupled Stripline' },
+              { key: 'edge_coupled_stripline', label: 'Edge Coupled Stripline' }
+            ]}
+            active={tab}
+            onSelect={setTab}
+          />
+          {tab === 'microstrip' && <Microstrip er={er} copper={copper} />}
+          {tab === 'stripline' && <Stripline er={er} copper={copper} />}
+          {tab === 'embedded_microstrip' && <EmbeddedMicrostrip er={er} copper={copper} />}
+          {tab === 'async_stripline' && <AsymmetricStripline er={er} copper={copper} />}
+          {tab === 'edge_coupled_microstrip' && <EdgeCoupledMicrostrip er={er} copper={copper} />}
+          {tab == 'broadside_coupled_stripline' && <BroadsideCoupledStripline er={er} copper={copper} />}
+          {tab == 'edge_coupled_stripline' && <EdgeCoupledStripline er={er} copper={copper} />}
         </Panel>
       </div>
+    </div>
+  );
+}
 
-      <aside class="sidebar">
-        <Panel title="Options">
-          <RadioGroup
-            label="Base Copper Weight"
-            value={copper}
-            onChange={setCopper}
-            options={[ '0.5oz','1oz','1.5oz','2oz','2.5oz','3oz','4oz','5oz' ].map(v => ({label:v, value:v}))}
-          />
+function Microstrip({ er, copper }: { er: string; copper: string }) {
+  const [Height, setHeight] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
 
-          <RadioGroup
-            label="Units"
-            value={units}
-            onChange={(v)=>setUnits(v as Units)}
-            options={[{label:'Imperial', value:'imperial'},{label:'Metric', value:'metric'}]}
-          />
+  const height = parseSI(Height) ?? 0;
+  const width = parseSI(Width) ?? 0;
 
-          <Select
-            label="Material Selection"
-            value={material}
-            onChange={setMaterial}
-            options={[
-              {label:'FR-4 STD', value:'FR-4 STD'},
-              {label:'FR-4 High Tg', value:'FR-4 High Tg'},
-              {label:'Rogers 4350', value:'Rogers 4350'}
-            ]}
-          />
+  const z0 = microstripZoFormula(height, width, copper, parseFloat(er) || 4.2);
 
-          <Field label="Er" value={er} onInput={setEr} type="number" step="any" />
-          <Slider label="Temp Rise (°C)" value={tempRise} min={0} max={70} onInput={setTempRise} />
-          <Slider label="Ambient Temp (°C)" value={ambient} min={-20} max={80} onInput={setAmbient} />
-          <div class="flex gap-2">
-            <button class="button">Solve!</button>
-            {/* <button class="button ghost">Print</button> */}
-          </div>
-          <div class="small mt-2">Er Effective {(e_eff).toFixed(4)}</div>
-          <div class="small">Total Copper Thickness {(t_m*1e6).toFixed(2)} μm</div>
-        </Panel>
-      </aside>
+  return (
+    <div class="grid cols-3">
+      <MicrostripIcon />
+      <div>
+        <SIField label="Substrate height (h), mm" value={Height} setValue={setHeight} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function Stripline({ er, copper }: { er: string; copper: string }) {
+  const [Height, setHeight] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+
+  const height = parseSI(Height) ?? 0;
+  const width = parseSI(Width) ?? 0;
+
+  const z0 = striplineZoFormula(height, width, copper, parseFloat(er) || 4.2);
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Substrate height (h), mm" value={Height} setValue={setHeight} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function EmbeddedMicrostrip({ er, copper }: { er: string; copper: string }) {
+  const [Height, setHeight] = useState('0.125');
+  const [HeightP, setHeightP] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+
+  const height = parseSI(Height) ?? 0;
+  const heightP = parseSI(HeightP) ?? 0;
+  const width = parseSI(Width) ?? 0;
+
+  const z0 = embeddedMicrostripZoFormula(height, heightP, width, copper, parseFloat(er) || 4.2);
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Substrate height (h), mm" value={Height} setValue={setHeight} suffix="" />
+        <SIField label="Trace height above plane (hp), mm" value={HeightP} setValue={setHeightP} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function AsymmetricStripline({ er, copper }: { er: string; copper: string }) {
+  const [HeightA, setHeightA] = useState('0.125');
+  const [HeightP, setHeightP] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+
+  const heightA = parseSI(HeightA) ?? 0;
+  const heightP = parseSI(HeightP) ?? 0;
+  const width = parseSI(Width) ?? 0;
+
+  const z0 = asymmetricStriplineZoFormula(heightA, heightP, width, copper, parseFloat(er) || 4.2);
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Substrate height (h), mm" value={HeightA} setValue={setHeightA} suffix="" />
+        <SIField label="Trace height above plane (hp), mm" value={HeightP} setValue={setHeightP} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function EdgeCoupledMicrostrip({ er, copper }: { er: string; copper: string }) {
+  const [Height, setHeight] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+  const [Spacing, setSpacing] = useState('0.15');
+
+  const height = parseSI(Height) ?? 0;
+  const width = parseSI(Width) ?? 0;
+  const spacing = parseSI(Spacing) ?? 0;
+
+  const zd = edgeCoupledMicrostripZoFormula(height, width, spacing, copper, parseFloat(er) || 4.2);
+
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Height (h), mm" value={Height} setValue={setHeight} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+        <SIField label="Trace spacing (s), mm" value={Spacing} setValue={setSpacing} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>d</sub></>, value: (isFinite(zd) ? zd.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function BroadsideCoupledStripline({ er, copper }: { er: string; copper: string }) {
+  const [HeightToPlane, setHeightToPlane] = useState('0.125');
+  const [HeightBetween, setHeightBetween] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+
+  const hp = parseSI(HeightToPlane) ?? 0;
+  const ht = parseSI(HeightBetween) ?? 0;
+  const width = parseSI(Width) ?? 0;
+
+  const z0 = broadsideCoupledStriplineZoFormula(hp, ht, width, copper, parseFloat(er) || 4.2);
+
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Height to plane (hₚ), mm" value={HeightToPlane} setValue={setHeightToPlane} suffix="" />
+        <SIField label="Height between traces (hₜ), mm" value={HeightBetween} setValue={setHeightBetween} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+      ]} />
+    </div>
+  );
+}
+
+function EdgeCoupledStripline({ er, copper }: { er: string; copper: string }) {
+  const [Height, setHeight] = useState('0.125');
+  const [Width, setWidth] = useState('0.25');
+  const [Spacing, setSpacing] = useState('0.15');
+
+  const height = parseSI(Height) ?? 0;
+  const width = parseSI(Width) ?? 0;
+  const spacing = parseSI(Spacing) ?? 0;
+
+  const { z0, zd } = edgeCoupledStriplineZoFormula(height, width, spacing, copper, parseFloat(er) || 4.2);
+
+  return (
+    <div class="grid cols-3">
+      {/* FIXME: draw an appropriate image */}
+      <MicrostripIcon />
+      <div>
+        <SIField label="Height (h), mm" value={Height} setValue={setHeight} suffix="" />
+        <SIField label="Trace width (w), mm" value={Width} setValue={setWidth} suffix="" />
+        <SIField label="Trace spacing (s), mm" value={Spacing} setValue={setSpacing} suffix="" />
+      </div>
+      <ResultCard rows={[
+        { label: <>Z<sub>0</sub></>, value: (isFinite(z0) ? z0.toFixed(2) : '—') + ' Ω' },
+        { label: <>Z<sub>d</sub></>, value: (isFinite(zd) ? zd.toFixed(2) : '—') + ' Ω' },
+      ]} />
     </div>
   );
 }
