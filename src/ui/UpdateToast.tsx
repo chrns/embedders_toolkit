@@ -12,6 +12,7 @@ import { useEffect, useState } from 'preact/hooks';
 export function UpdateToast() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
   const [visible, setVisible] = useState(false);
+  const [shouldReload, setShouldReload] = useState(false);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -20,6 +21,19 @@ export function UpdateToast() {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         navigator.serviceWorker.getRegistration().then(reg => reg?.update());
+      }
+    };
+
+    // Guard variable and handler for controllerchange
+    let controllerChanged = false;
+    const onControllerChange = () => {
+      if (controllerChanged) return; // debounce duplicate events
+      controllerChanged = true;
+      const asked = shouldReload || sessionStorage.getItem('sw-skipwaiting-clicked') === '1';
+      if (asked) {
+        try { sessionStorage.removeItem('sw-skipwaiting-clicked'); } catch {}
+        // Hard navigation helps Safari/iOS avoid reload loops
+        window.location.replace(window.location.href);
       }
     };
 
@@ -58,17 +72,16 @@ export function UpdateToast() {
         setVisible(true);
       }
 
-      // When the new SW takes control, reload the page to the fresh version
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      });
+      // Guarded reload to avoid iOS PWA refresh loops
+      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
     });
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       if (intervalId) clearInterval(intervalId);
+      try { navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange as any); } catch {}
     };
-  }, []);
+  }, [shouldReload]);
 
   if (!visible) return null;
 
@@ -78,6 +91,8 @@ export function UpdateToast() {
       <button
         class="button"
         onClick={() => {
+          setShouldReload(true);
+          try { sessionStorage.setItem('sw-skipwaiting-clicked', '1'); } catch {}
           // Ask the waiting SW to activate immediately
           waitingSW?.postMessage({ type: 'SKIP_WAITING' });
         }}
