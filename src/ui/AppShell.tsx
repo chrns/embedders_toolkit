@@ -32,17 +32,19 @@ export function AppShell(props: { children: ComponentChildren }) {
       <div class="layout">
         <div class="content">{props.children}</div>
       </div>
-      <UpdateToast />
-      <span>
-        PWA-ready • {
-          (() => {
-            const ver = (typeof __APP_VERSION__ !== 'undefined'
-              ? __APP_VERSION__
-              : (import.meta as any).env?.VITE_APP_VERSION ?? 'dev');
-            return /^v?\d/.test(ver) ? `v${ver.replace(/^v/, '')}` : ver;
-          })()
-        }
-      </span>
+      <div class="footer-center text-center flex flex-col items-center justify-center gap-1 py-4">
+        <UpdateToast />
+        <span>
+          PWA-ready • {
+            (() => {
+              const ver = (typeof __APP_VERSION__ !== 'undefined'
+                ? __APP_VERSION__
+                : (import.meta as any).env?.VITE_APP_VERSION ?? 'dev');
+              return /^v?\d/.test(ver) ? `v${ver.replace(/^v/, '')}` : ver;
+            })()
+          }
+        </span>
+      </div>
     </div>
   );
 }

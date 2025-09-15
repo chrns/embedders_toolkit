@@ -21,7 +21,7 @@ import {
 type Units = 'imperial' | 'metric';
 const copperWeightsList = ['0.5oz','1oz','1.5oz','2oz','2.5oz','3oz','4oz','5oz'];
 
-export default function ConductorImpedance() {
+export default function Impedance() {
   // options
   const [er, setEr] = useState('4.6');
   const [material, setMaterial] = useState('FR-4 (Standard)');

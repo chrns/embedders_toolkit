@@ -4,6 +4,7 @@ import { ResultCard } from '@/ui/ResultCard';
 import { SubTabs } from '@/ui/SubTabs';
 import { SIField } from '@/ui/SIField';
 import { Field } from '@/ui/Field';
+import { Select } from '@/ui/Select';
 import { parseSI, formatSI } from '@/lib/si';
 import { LEDVfSelect } from '@/ui/LEDVfSelect';
 
@@ -62,28 +63,24 @@ export default function OhmsLaw() {
           <SubTabs
             tabs={[
               { key: 'led', label: 'LED' },
-              { key: 'resistor', label: 'Resistor' },
-              { key: 'capacitor', label: 'Capacitor' },
-              { key: 'inductor', label: 'Inductor' },
+              { key: 'rlcnet', label: 'R, L, C' },
               { key: 'ntc', label: 'NTC' },
               { key: 'rlc', label: 'Divider' }
             ]}
             active={tab}
             onSelect={setTab}
           />
-          {tab === 'led' && <Led/>}
-          {tab === 'resistor' && <ResistorTab/>}
-          {tab === 'capacitor' && <CapacitorTab/>}
-          {tab === 'inductor' && <InductorTab/>}
+          {tab === 'led' && <LedTab/>}
+          {tab === 'rlcnet' && <RLCNetworksTab/>}
           {tab === 'ntc' && <NTCTab/>}
-          {tab == 'rlc' && <RLCTab/>}
+          {tab == 'rlc' && <DividerTab/>}
         </Panel>
       </div>
     </div>
   );
 }
 
-function Led() {
+function LedTab() {
   const [Vs, setVs] = useState('12');
   const [Vf, setVf] = useState('2');
   const [If_mA, setIf] = useState('10');
@@ -132,8 +129,167 @@ function Led() {
   );
 }
 
-function PTCStub() {
-  return <div class="small">PTC calculator stub — add your curve model later.</div>;
+function RLCNetworksTab() {
+  type Mode = 'Resistor' | 'Capacitor' | 'Inductor';
+  const [mode, setMode] = useState<Mode>('Resistor');
+
+  // Inputs for resistor network (comma-separated) + supply voltage
+  const [resList, setResList] = useState('10k, 4k7, 51k');
+  const [resVoltage, setResVoltage] = useState('5');
+
+  // Inputs for capacitor/inductor list modes
+  const [capList, setCapList] = useState('10n, 100n, 1u');
+  const [capVoltage, setCapVoltage] = useState('5');
+  const [indList, setIndList] = useState('10u, 47u, 100u');
+  const [indCurrent, setIndCurrent] = useState('100m');
+
+  // Parse resistor list
+  const resistors = useMemo(() => resList
+    .split(/[\,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0), [resList]);
+
+  const Vres = useMemo(() => parseSI(resVoltage) ?? 0, [resVoltage]);
+
+  // Totals
+  const Rser = useMemo(() => resistors.reduce((a,c)=>a+c, 0), [resistors]);
+  const Rpar = useMemo(() => {
+    const d = resistors.reduce((a,c)=>a + 1/c, 0);
+    return d > 0 ? 1/d : 0;
+  }, [resistors]);
+
+  // Per-resistor power arrays
+  const Pser_each = useMemo(() => {
+    const I = Rser > 0 ? Vres / Rser : 0;
+    return resistors.map(r => I*I*r);
+  }, [resistors, Vres, Rser]);
+
+  const Ppar_each = useMemo(() => {
+    return resistors.map(r => (Vres*Vres)/r);
+  }, [resistors, Vres]);
+
+  // Capacitor network (comma-separated list)
+  const caps = useMemo(() => capList
+    .split(/[\,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0), [capList]);
+  const Cpar = useMemo(() => caps.reduce((a,c)=>a+c,0), [caps]);
+  const Cser = useMemo(() => {
+    const d = caps.reduce((a,c)=>a + 1/c, 0);
+    return d > 0 ? 1/d : 0;
+  }, [caps]);
+  const Vcap = useMemo(() => parseSI(capVoltage) ?? 0, [capVoltage]);
+  const Epar = useMemo(() => 0.5 * Cpar * Vcap * Vcap, [Cpar, Vcap]);
+  const Eser = useMemo(() => 0.5 * Cser * Vcap * Vcap, [Cser, Vcap]);
+
+  // Inductor network (comma-separated list)
+  const inducs = useMemo(() => indList
+    .split(/[\,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => parseSI(v))
+    .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0), [indList]);
+  const Lser = useMemo(() => inducs.reduce((a,c)=>a+c,0), [inducs]);
+  const Lpar = useMemo(() => {
+    const d = inducs.reduce((a,c)=>a + 1/c, 0);
+    return d > 0 ? 1/d : 0;
+  }, [inducs]);
+  const Iind = useMemo(() => parseSI(indCurrent) ?? 0, [indCurrent]);
+  const Wind_par = useMemo(() => (Iind*Iind*Lpar)/2, [Iind, Lpar]);
+  const Wind_ser = useMemo(() => (Iind*Iind*Lser)/2, [Iind, Lser]);
+
+  return (
+    <div class="grid cols-2">
+      <div class="flex flex-col gap-3">
+        <Select
+          label="Component"
+          value={mode}
+          onChange={v=>setMode(v as Mode)}
+          options={[
+            {label:'Resistor', value:'Resistor'},
+            {label:'Capacitor', value:'Capacitor'},
+            {label:'Inductor', value:'Inductor'},
+          ]}
+        />
+
+        {mode === 'Resistor' && (
+          <>
+            <Field
+              label="Resistors (comma-separated)"
+              value={resList}
+              onInput={setResList}
+              type="text"
+              placeholder="e.g. 10k, 4k7, 51k"
+            />
+            <SIField label="Voltage" value={resVoltage} setValue={setResVoltage} placeholder="5" suffix="V" />
+          </>
+        )}
+
+        {mode === 'Capacitor' && (
+          <>
+            <Field
+              label="Capacitors (comma-separated)"
+              value={capList}
+              onInput={setCapList}
+              type="text"
+              placeholder="e.g. 10n, 100n, 1u"
+            />
+            <SIField
+              label="Voltage"
+              value={capVoltage}
+              setValue={setCapVoltage}
+              suffix="V"
+              placeholder="e.g. 5"
+            />
+          </>
+        )}
+
+        {mode === 'Inductor' && (
+          <>
+            <Field
+              label="Inductors (comma-separated)"
+              value={indList}
+              onInput={setIndList}
+              type="text"
+              placeholder="e.g. 10u, 47u, 100u"
+            />
+            <SIField label="Current" value={indCurrent} setValue={setIndCurrent} suffix="A" placeholder="e.g. 100m" />
+          </>
+        )}
+      </div>
+
+      {mode === 'Resistor' && (
+        <ResultCard rows={[
+          {
+            label: 'Parallel',
+            value: `${formatSI(Rpar, 'Ω')}  —  P=[${Ppar_each.map(p=>formatSI(p,'W')).join(', ')}]`
+          },
+          {
+            label: 'Series',
+            value: `${formatSI(Rser, 'Ω')}  —  P=[${Pser_each.map(p=>formatSI(p,'W')).join(', ')}]`
+          }
+        ]} />
+      )}
+
+      {mode === 'Capacitor' && (
+        <ResultCard rows={[
+          { label: 'Parallel', value: `${formatSI(Cpar, 'F')}  —  W=${formatSI(Epar, 'J')}` },
+          { label: 'Series', value: `${formatSI(Cser, 'F')}  —  W=${formatSI(Eser, 'J')}` },
+        ]} />
+      )}
+
+      {mode === 'Inductor' && (
+        <ResultCard rows={[
+          { label: 'Parallel', value: `${formatSI(Lpar, 'H')}  —  W=${formatSI(Wind_par, 'J')}` },
+          { label: 'Series', value: `${formatSI(Lser, 'H')}  —  W=${formatSI(Wind_ser, 'J')}` },
+        ]} />
+      )}
+    </div>
+  );
 }
 
 function ResistorTab() {
@@ -323,13 +479,58 @@ function InductorTab() {
   );
 }
 
+
+function NTCTab() {
+  const [RCalib, setRCalib] = useState('10k');
+  const [TCalib, setTCalib] = useState('25');
+  const [Beta, setBeta] = useState('4000');
+  const [Tolerance, setTolerance] = useState('1');
+  const [TTarget, setTTarget] = useState('75');
+
+  const R = parseSI(RCalib) ?? 0;
+  const T = parseSI(TCalib) ?? 0;
+  const B = parseSI(Beta) ?? 0;
+  const Tol = parseSI(Tolerance) ?? 0;
+  const TTar = parseSI(TTarget) ?? 0;
+  
+  const TypicalR = R * Math.pow(2.71828, B * (1 / (TTar + 273.15) - 1 / (T + 273.15)));
+  const MinR = (1 - Tol / 100) * TypicalR ;
+  const MaxR = (1 + Tol / 100) * TypicalR;
+
+  return (
+    <div class="grid cols-2">
+      <div class="grid">
+        <SIField label="Calibration resistance" value={RCalib} setValue={setRCalib} suffix="Ω" />
+        <SIField label="Calibration temperature" value={TCalib} setValue={setTCalib} suffix="°C" />
+        <SIField label="Thermistor beta" value={Beta} setValue={setBeta} suffix="K" />
+        <SIField label="Tolerance" value={Tolerance} setValue={setTolerance} suffix="%" />
+        <SIField label="Target temperature" value={TTarget} setValue={setTTarget} suffix="°C" />
+      </div>
+      <ResultCard rows={[
+        {
+          label:'Typical resistance at 75 °C',
+          value: `${formatSI(TypicalR, 'Ω')}`
+        },
+        {
+          label:'Min resistance',
+          value: `${formatSI(MinR, 'Ω')}`
+        },
+        {
+          label:'Max resistance',
+          value: `${formatSI(MaxR, 'Ω')}`
+        }
+        ]} />
+    </div>
+  );
+}
+
 type RLC_Solver = 'R' | 'L' | 'C';
 
-function RLCTab() {
+function DividerTab() {
   const [rlcSolveFor, setRlcSolveFor] = useState<RLC_Solver>('R');
   const [Voltage, setVoltage] = useState('3.3');
-  const [Value1, setValue_1] = useState('1');
-  const [Value2, setValue_2] = useState('1');
+  const [Value1, setValue_1] = useState('100k');
+  const [Value2, setValue_2] = useState('100k');
   const suffixMap: Record<RLC_Solver, string> = { R: 'Ω', L: 'H', C: 'F' };
 
   const Result = 0;
@@ -381,49 +582,3 @@ function RLCTab() {
     </div>
   );
 }
-
-
-function NTCTab() {
-  const [RCalib, setRCalib] = useState('10k');
-  const [TCalib, setTCalib] = useState('25');
-  const [Beta, setBeta] = useState('4000');
-  const [Tolerance, setTolerance] = useState('1');
-  const [TTarget, setTTarget] = useState('75');
-
-  const R = parseSI(RCalib) ?? 0;
-  const T = parseSI(TCalib) ?? 0;
-  const B = parseSI(Beta) ?? 0;
-  const Tol = parseSI(Tolerance) ?? 0;
-  const TTar = parseSI(TTarget) ?? 0;
-  
-  const TypicalR = R * Math.pow(2.71828, B * (1 / (TTar + 273.15) - 1 / (T + 273.15)));
-  const MinR = (1 - Tol / 100) * TypicalR ;
-  const MaxR = (1 + Tol / 100) * TypicalR;
-
-  return (
-    <div class="grid cols-2">
-      <div class="grid">
-        <SIField label="Calibration resistance" value={RCalib} setValue={setRCalib} suffix="Ω" />
-        <SIField label="Calibration temperature" value={TCalib} setValue={setTCalib} suffix="°C" />
-        <SIField label="Thermistor beta" value={Beta} setValue={setBeta} suffix="K" />
-        <SIField label="Tolerance" value={Tolerance} setValue={setTolerance} suffix="%" />
-        <SIField label="Target temperature" value={TTarget} setValue={setTTarget} suffix="°C" />
-      </div>
-      <ResultCard rows={[
-        {
-          label:'Typical resistance at 75 °C',
-          value: `${formatSI(TypicalR, 'Ω')}`
-        },
-        {
-          label:'Min resistance',
-          value: `${formatSI(MinR, 'Ω')}`
-        },
-        {
-          label:'Max resistance',
-          value: `${formatSI(MaxR, 'Ω')}`
-        }
-        ]} />
-    </div>
-  );
-}
-

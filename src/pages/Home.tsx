@@ -10,7 +10,7 @@ export default function Home() {
         <OhmIcon />
       </CardButton>
 
-      <CardButton href="/impedance" label="Conductor Impedance">
+      <CardButton href="/impedance" label="Impedance">
         <TraceIcon />
       </CardButton>
 
