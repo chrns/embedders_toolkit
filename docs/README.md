@@ -1,6 +1,6 @@
 # Calculator's math
 
-...
+... ...
 
 ## Voltage divider
 
