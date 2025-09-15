@@ -29,6 +29,10 @@ jobs:
       - name: Install deps
         run: |
           npm ci || npm i
+      - name: Write version.txt
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          echo "$VERSION" > public/version.txt
       - name: Build
         run: npm run build
       - name: Upload artifact
