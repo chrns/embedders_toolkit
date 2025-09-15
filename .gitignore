@@ -45,7 +45,6 @@ unocss.config.timestamp-*
 
 # PWA/Service Worker cache outputs
 workbox-*.js
-sw.js
 sw.js.map
 
 # TypeScript
