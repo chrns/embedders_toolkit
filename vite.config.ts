@@ -19,7 +19,7 @@ export default defineConfig({
     preact(),
     UnoCSS(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Embedder\'s Toolkit',

@@ -40,6 +40,14 @@ jobs:
         env:
           VITE_APP_VERSION: ${{ github.ref_name }}
         run: npm run build
+      - name: Verify version.txt in dist
+        run: |
+          ls -la dist || true
+          if [ ! -f dist/version.txt ]; then
+            echo "ERROR: dist/version.txt is missing. Ensure Vite publicDir includes public/version.txt." >&2
+            exit 1
+          fi
+          echo "version.txt contents:" && cat dist/version.txt
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
