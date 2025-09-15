@@ -11,6 +11,7 @@ export function UpdateToast() {
   const [waitingSW, setWaitingSW] = useState<ServiceWorker | null>(null);
   const [visible, setVisible] = useState(false);
   const [shouldReload, setShouldReload] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const waitingUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -121,17 +122,50 @@ export function UpdateToast() {
       <span>New version is available.</span>
       <button
         class="button"
-        onClick={() => {
+        onClick={async () => {
+          if (reloading) return;
+          setReloading(true);
           setShouldReload(true);
           try { sessionStorage.setItem('sw-skipwaiting-clicked', '1'); } catch {}
-          // Ask the waiting SW to activate immediately
-          waitingSW?.postMessage({ type: 'SKIP_WAITING' });
+
+          try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            const sw = reg?.waiting || waitingSW;
+            if (sw) {
+              // When the waiting SW activates, we’ll get controllerchange. Add an extra guard here too.
+              const onState = () => {
+                if (sw.state === 'activated') {
+                  try { localStorage.removeItem('sw-notified'); } catch {}
+                  window.location.replace(window.location.href);
+                }
+              };
+              try { sw.addEventListener('statechange', onState); } catch {}
+
+              // Ask it to activate now
+              sw.postMessage({ type: 'SKIP_WAITING' });
+
+              // Fallback: if nothing happens soon, hard-reload anyway
+              window.setTimeout(() => {
+                window.location.replace(window.location.href);
+              }, 2500);
+            } else {
+              // No waiting SW? Trigger an update check and fallback reload.
+              await reg?.update();
+              window.setTimeout(() => {
+                window.location.replace(window.location.href);
+              }, 1200);
+            }
+          } catch {
+            // As a last resort, hard reload
+            window.location.replace(window.location.href);
+          }
         }}
       >
-        Reload
+        { reloading ? 'Updating…' : 'Reload' }
       </button>
       <button
         class="button ghost"
+        disabled={reloading}
         onClick={() => {
           try {
             if (waitingUrlRef.current) localStorage.setItem('sw-notified', waitingUrlRef.current);
