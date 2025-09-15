@@ -11,6 +11,7 @@ export function AppShell(props: { children: ComponentChildren }) {
 
   return (
     <div>
+      <UpdateToast />
       <header class="topbar">
 
         <div class="flex items-center gap-3">
@@ -33,7 +34,6 @@ export function AppShell(props: { children: ComponentChildren }) {
         <div class="content">{props.children}</div>
       </div>
       <div class="footer-center text-center flex flex-col items-center justify-center gap-1 py-4">
-        <UpdateToast />
         <span>
           PWA-ready • {
             (() => {

@@ -10,18 +10,6 @@ const PRECACHE_URLS = [
   '/icons/sponsor.svg'
 ];
 
-// ---- helper to get app version ----
-async function getAppVersion() {
-  try {
-    const res = await fetch('/version.txt', { cache: 'no-cache' });
-    if (!res.ok) throw new Error('no version');
-    const txt = (await res.text()).trim();
-    return txt || 'dev';
-  } catch {
-    return 'dev';
-  }
-}
-
 // ---- SW lifecycle: skip waiting & claim ----
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -31,8 +19,6 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const ver = await getAppVersion();
-    RUNTIME_CACHE_NAME = `${CACHE_NAME_BASE}-${ver}`;
     const cache = await caches.open(RUNTIME_CACHE_NAME);
     try { await cache.addAll(PRECACHE_URLS); } catch {}
     // Do not call skipWaiting here; wait until user accepts update
