@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 
-// Helper: get the build version baked into the app at build time
 function getLocalVersion(): string {
   try {
-    // __APP_VERSION__ comes from Vite define (fallback to env)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const v = (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : (import.meta as any).env?.VITE_APP_VERSION) as string | undefined;
     return (v && String(v)) || 'dev';
@@ -12,7 +10,6 @@ function getLocalVersion(): string {
   }
 }
 
-// Helper: fetch version.txt from the server (no-cache) to compare
 async function fetchServerVersion(signal?: AbortSignal): Promise<string | null> {
   try {
     const res = await fetch('/version.txt', { cache: 'no-cache', redirect: 'follow', signal });
@@ -30,80 +27,106 @@ export function UpdateToast() {
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   const localVersion = getLocalVersion();
 
-  // 1) On start, if online, check server version; if mismatched → show banner
   useEffect(() => {
+    let intervalId: number | undefined;
     const ctrl = new AbortController();
 
-    async function check() {
-      // Gate on online; if offline, do nothing.
+    const ensureSW = async () => {
+      if (!('serviceWorker' in navigator)) return;
+      const existing = await navigator.serviceWorker.getRegistration();
+      if (!existing) {
+        try {
+          await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+        } catch {}
+      }
+    };
+
+    const check = async () => {
       if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) return;
       const sv = await fetchServerVersion(ctrl.signal);
-      if (!sv) return; // can't determine server version
+      if (!sv) return;
       setServerVersion(sv);
       if (sv !== localVersion) setVisible(true);
-    }
+    };
 
-    check();
+    // Register SW (if not yet) and check once now
+    ensureSW().then(check);
 
-    // When the app goes online (e.g., user disables airplane mode), re-check
+    // Re-check when app becomes visible/online and periodically
     const onOnline = () => check();
     const onVisibility = () => { if (document.visibilityState === 'visible') check(); };
     window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisibility);
+    intervalId = window.setInterval(check, 60 * 60 * 1000);
+
+    // Reload on controllerchange only if user accepted update
+    let controllerChanged = false;
+    const onControllerChange = () => {
+      if (controllerChanged) return;
+      controllerChanged = true;
+      const asked = sessionStorage.getItem('sw-accept-update') === '1';
+      if (asked) {
+        try { sessionStorage.removeItem('sw-accept-update'); } catch {}
+        // Hard navigation avoids iOS/Chrome PWA loops
+        window.location.replace(window.location.href);
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    }
 
     return () => {
       ctrl.abort();
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisibility);
+      if (intervalId) clearInterval(intervalId);
+      if ('serviceWorker' in navigator) {
+        try { navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange as any); } catch {}
+      }
     };
   }, [localVersion]);
 
-  // 2) Update flow when user clicks Update
   async function performUpdate() {
     if (reloading) return;
     setReloading(true);
+    try { sessionStorage.setItem('sw-accept-update', '1'); } catch {}
 
-    // Prefer service worker-controlled update if present
     try {
       if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        // Force SW to check for a new version of sw.js
-        await reg?.update();
+        const reg1 = await navigator.serviceWorker.getRegistration();
+        await reg1?.update();
 
-        // If an updated worker is already waiting, activate it
-        const sw = reg?.waiting ?? null;
-        if (sw) {
-          const once = () => {
-            // After activation, hard-reload to ensure all resources are from the new version/cache
-            window.location.replace(window.location.href);
-          };
-          try { sw.addEventListener('statechange', once, { once: true } as AddEventListenerOptions); } catch {}
-          sw.postMessage({ type: 'SKIP_WAITING' });
-          // Safety fallback if events don't fire
-          setTimeout(() => window.location.replace(window.location.href), 2000);
-          return;
-        }
+        let waiting = reg1?.waiting ?? null;
 
-        // If there's an installing worker, wait until it's installed and then skip waiting
-        if (reg?.installing) {
-          const installing = reg.installing;
-          installing?.addEventListener('statechange', () => {
-            if (installing.state === 'installed') {
-              installing.postMessage?.({ type: 'SKIP_WAITING' });
-              setTimeout(() => window.location.replace(window.location.href), 1000);
-            }
+        // Wait for installing → installed → waiting
+        if (!waiting && reg1?.installing) {
+          await new Promise<void>((resolve) => {
+            const sw = reg1.installing!;
+            sw.addEventListener('statechange', () => {
+              if (sw.state === 'installed') resolve();
+            });
           });
-          return;
+          const reg2 = await navigator.serviceWorker.getRegistration();
+          waiting = reg2?.waiting ?? null;
         }
 
-        // Otherwise, we may not have a waiting SW yet. Try to register to pick up the new sw.js (cache-busted)
-        try {
-          await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
-        } catch {}
+        if (!waiting) {
+          // Try re-registering to pick up a fresh sw.js without cache
+          try { await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }); } catch {}
+          const reg3 = await navigator.serviceWorker.getRegistration();
+          waiting = reg3?.waiting ?? null;
+        }
+
+        if (waiting) {
+          try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch {}
+          // Fallback in case controllerchange doesn’t fire
+          setTimeout(() => window.location.replace(window.location.href), 2500);
+          return;
+        }
       }
     } catch {}
 
-    // Last-resort hard reload with cache-busting to bypass HTTP cache
+    // Last resort: cache-busted reload
     const url = new URL(window.location.href);
     url.searchParams.set('v', String(Date.now()));
     window.location.replace(url.toString());

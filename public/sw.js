@@ -35,7 +35,7 @@ self.addEventListener('install', (event) => {
     RUNTIME_CACHE_NAME = `${CACHE_NAME_BASE}-${ver}`;
     const cache = await caches.open(RUNTIME_CACHE_NAME);
     try { await cache.addAll(PRECACHE_URLS); } catch {}
-    self.skipWaiting();
+    // Do not call skipWaiting here; wait until user accepts update
   })());
 });
 
