@@ -111,7 +111,7 @@ input:disabled { opacity:.6; cursor: not-allowed; }
 /* ResultCard – centered triple value (min | main | max) */
 .result-card .kpi {
   display: grid;
-  grid-template-columns: 1fr 1fr; /* label | value */
+  grid-template-columns: 1fr 5fr; /* label | value */
   align-items: baseline;
 }
 .result-card .kpi .small { /* left label */
