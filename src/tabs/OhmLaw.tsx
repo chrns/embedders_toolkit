@@ -7,6 +7,8 @@ import { Field } from '@/ui/Field';
 import { Select } from '@/ui/Select';
 import { parseSI, formatSI } from '@/lib/si';
 import { LEDVfSelect } from '@/ui/LEDVfSelect';
+import { FixableInput } from '@/ui/components/Input';
+import OhmLawTriangle from '@/ui/icons/OhmsIcon';
 
 type SolveFor = 'V' | 'I' | 'R' | 'P';
 
@@ -16,6 +18,19 @@ export default function OhmsLaw() {
   const [ohms, setOhms] = useState('12');
   const [volts, setVolts] = useState('12');
   const [watts, setWatts] = useState('12');
+  // Track which field was last edited, to allow auto-pick of solveFor
+  const [lastEdited, setLastEdited] = useState<SolveFor | null>(null);
+  const pickRemaining = (a: SolveFor, b: SolveFor): SolveFor =>
+    (['V', 'I', 'R', 'P'].filter(x => x !== a && x !== b)[0]) as SolveFor;
+  const makeOnChange =
+    (name: SolveFor, setter: (v: string) => void) =>
+      (v: string) => {
+        setter(v);
+        if (lastEdited && lastEdited !== name) {
+          setSolveFor(pickRemaining(name, lastEdited));
+        }
+        setLastEdited(name);
+      };
 
   const solved = useMemo(() => {
     const I = parseSI(amps) ?? 0;
@@ -26,10 +41,10 @@ export default function OhmsLaw() {
     let out = { V, I, R, P };
     try {
       if (solveFor === 'V') out.V = I * R;
-      if (solveFor === 'I') out.I = V / (R||1e-12);
-      if (solveFor === 'R') out.R = V / (I||1e-12);
+      if (solveFor === 'I') out.I = V / (R || 1e-12);
+      if (solveFor === 'R') out.R = V / (I || 1e-12);
       if (solveFor === 'P') out.P = V * I;
-    } catch {}
+    } catch { }
     return out;
   }, [solveFor, amps, ohms, volts, watts]);
 
@@ -40,26 +55,61 @@ export default function OhmsLaw() {
       <div class="flex flex-col gap-4">
         <Panel>
           <h2>Ohm’s Law</h2>
-          <div class="tabs">
-            {(['V','I','R','P'] as SolveFor[]).map(k => (
-              <button class="tab-btn" aria-selected={solveFor===k} onClick={()=>setSolveFor(k)}>{k}</button>
-            ))}
-          </div>
           <div class="grid cols-2">
-            <SIField label="Ohms" value={ohms} setValue={setOhms} placeholder="e.g. 330, 4k7, 1M" suffix="Ω" disabled={solveFor === 'R'} />
-            <SIField label="Volts" value={volts} setValue={setVolts} placeholder="e.g. 5, 3.3, 12V" suffix="V" disabled={solveFor === 'V'} />
-            <SIField label="Amps" value={amps} setValue={setAmps} placeholder="e.g. 10m, 2A" suffix="A" disabled={solveFor === 'I'} />
-            <SIField label="Wattage" value={watts} setValue={setWatts} placeholder="e.g. 0.25W, 2W" suffix="W" disabled={solveFor === 'P'} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <OhmLawTriangle />
+            </div>
+
+            <div class="vstack">
+              <FixableInput
+                label="Ohms"
+                value={ohms}
+                tolerance={5}
+                onChange={makeOnChange('R', setOhms)}
+                placeholder="e.g. 330, 4k7, 1M"
+                suffix="Ω"
+                isFixed={solveFor === 'R'}
+                onToggleFix={() => setSolveFor('R')}
+              />
+              <FixableInput
+                label="Volts"
+                value={volts}
+                onChange={makeOnChange('V', setVolts)}
+                placeholder="e.g. 5, 3.3, 12V"
+                suffix="V"
+                isFixed={solveFor === 'V'}
+                onToggleFix={() => setSolveFor('V')}
+              />
+              <FixableInput
+                label="Amps"
+                value={amps}
+                onChange={makeOnChange('I', setAmps)}
+                placeholder="e.g. 10m"
+                suffix="A"
+                isFixed={solveFor === 'I'}
+                onToggleFix={() => setSolveFor('I')}
+              />
+              <FixableInput
+                label="Power"
+                value={watts}
+                onChange={makeOnChange('P', setWatts)}
+                placeholder="e.g. 10m"
+                suffix="A"
+                isFixed={solveFor === 'P'}
+                onToggleFix={() => setSolveFor('P')}
+              />
+            </div>
           </div>
+          
           <ResultCard rows={[
-            { label: 'Ohms', value: formatSI(solved.R, 'Ω') },
+            { label: 'Ohms', value: formatSI(solved.R, 'Ω'), value_min: formatSI(solved.R * 0.9, ''), value_max: formatSI(solved.R * 1.1, '') },
             { label: 'Volts', value: formatSI(solved.V, 'V') },
             { label: 'Amps', value: formatSI(solved.I, 'A') },
-            { label: 'Watts', value: formatSI(solved.P, 'W') }
+            { label: 'Power', value: formatSI(solved.P, 'W') },
           ]} />
         </Panel>
 
-        <Panel>
+        {/* <Panel>
           <SubTabs
             tabs={[
               { key: 'led', label: 'LED' },
@@ -70,11 +120,11 @@ export default function OhmsLaw() {
             active={tab}
             onSelect={setTab}
           />
-          {tab === 'led' && <LedTab/>}
-          {tab === 'rlcnet' && <RLCNetworksTab/>}
-          {tab === 'ntc' && <NTCTab/>}
-          {tab == 'rlc' && <DividerTab/>}
-        </Panel>
+          {tab === 'led' && <LedTab />}
+          {tab === 'rlcnet' && <RLCNetworksTab />}
+          {tab === 'ntc' && <NTCTab />}
+          {tab == 'rlc' && <DividerTab />}
+        </Panel> */}
       </div>
     </div>
   );
@@ -96,10 +146,10 @@ function LedTab() {
     const ROhm = parseSI(R) ?? 0;
     if (solveCurrent) {
       const I = (VsV - VfV) / ROhm;
-      return { R: ROhm, I, P: I*I*ROhm };
+      return { R: ROhm, I, P: I * I * ROhm };
     } else {
       const Rneed = (VsV - VfV) / (IfA || 1e-12);
-      return { R: Rneed, I: IfA, P: IfA*IfA*Rneed };
+      return { R: Rneed, I: IfA, P: IfA * IfA * Rneed };
     }
   }, [Vs, Vf, If_mA, R, solveCurrent]);
 
@@ -115,14 +165,14 @@ function LedTab() {
         </div>
         <SIField label="LED Current" value={If_mA} setValue={setIf} suffix="mA" disabled={!!solveCurrent} />
         <label class="flex items-center gap-2">
-          <input type="checkbox" checked={solveCurrent} onChange={(e)=>setSolveCurrent((e.target as HTMLInputElement).checked)}/>
+          <input type="checkbox" checked={solveCurrent} onChange={(e) => setSolveCurrent((e.target as HTMLInputElement).checked)} />
           <span class="small">Solve for LED Current</span>
         </label>
         <SIField label="Resistor Value" value={R} setValue={setR} suffix="Ω" disabled={!solveCurrent} />
       </div>
       <ResultCard rows={[
         { label: 'Resistor Value', value: calc.R.toFixed(3) + ' Ω' },
-        { label: 'LED Current', value: (calc.I*1000).toFixed(3) + ' mA' },
+        { label: 'LED Current', value: (calc.I * 1000).toFixed(3) + ' mA' },
         { label: 'Resistor Power Dissipation', value: calc.P.toFixed(4) + ' W' }
       ]} />
     </div>
@@ -154,20 +204,20 @@ function RLCNetworksTab() {
   const Vres = useMemo(() => parseSI(resVoltage) ?? 0, [resVoltage]);
 
   // Totals
-  const Rser = useMemo(() => resistors.reduce((a,c)=>a+c, 0), [resistors]);
+  const Rser = useMemo(() => resistors.reduce((a, c) => a + c, 0), [resistors]);
   const Rpar = useMemo(() => {
-    const d = resistors.reduce((a,c)=>a + 1/c, 0);
-    return d > 0 ? 1/d : 0;
+    const d = resistors.reduce((a, c) => a + 1 / c, 0);
+    return d > 0 ? 1 / d : 0;
   }, [resistors]);
 
   // Per-resistor power arrays
   const Pser_each = useMemo(() => {
     const I = Rser > 0 ? Vres / Rser : 0;
-    return resistors.map(r => I*I*r);
+    return resistors.map(r => I * I * r);
   }, [resistors, Vres, Rser]);
 
   const Ppar_each = useMemo(() => {
-    return resistors.map(r => (Vres*Vres)/r);
+    return resistors.map(r => (Vres * Vres) / r);
   }, [resistors, Vres]);
 
   // Capacitor network (comma-separated list)
@@ -177,10 +227,10 @@ function RLCNetworksTab() {
     .filter(Boolean)
     .map(v => parseSI(v))
     .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0), [capList]);
-  const Cpar = useMemo(() => caps.reduce((a,c)=>a+c,0), [caps]);
+  const Cpar = useMemo(() => caps.reduce((a, c) => a + c, 0), [caps]);
   const Cser = useMemo(() => {
-    const d = caps.reduce((a,c)=>a + 1/c, 0);
-    return d > 0 ? 1/d : 0;
+    const d = caps.reduce((a, c) => a + 1 / c, 0);
+    return d > 0 ? 1 / d : 0;
   }, [caps]);
   const Vcap = useMemo(() => parseSI(capVoltage) ?? 0, [capVoltage]);
   const Epar = useMemo(() => 0.5 * Cpar * Vcap * Vcap, [Cpar, Vcap]);
@@ -193,14 +243,14 @@ function RLCNetworksTab() {
     .filter(Boolean)
     .map(v => parseSI(v))
     .filter((x): x is number => typeof x === 'number' && isFinite(x) && x > 0), [indList]);
-  const Lser = useMemo(() => inducs.reduce((a,c)=>a+c,0), [inducs]);
+  const Lser = useMemo(() => inducs.reduce((a, c) => a + c, 0), [inducs]);
   const Lpar = useMemo(() => {
-    const d = inducs.reduce((a,c)=>a + 1/c, 0);
-    return d > 0 ? 1/d : 0;
+    const d = inducs.reduce((a, c) => a + 1 / c, 0);
+    return d > 0 ? 1 / d : 0;
   }, [inducs]);
   const Iind = useMemo(() => parseSI(indCurrent) ?? 0, [indCurrent]);
-  const Wind_par = useMemo(() => (Iind*Iind*Lpar)/2, [Iind, Lpar]);
-  const Wind_ser = useMemo(() => (Iind*Iind*Lser)/2, [Iind, Lser]);
+  const Wind_par = useMemo(() => (Iind * Iind * Lpar) / 2, [Iind, Lpar]);
+  const Wind_ser = useMemo(() => (Iind * Iind * Lser) / 2, [Iind, Lser]);
 
   return (
     <div class="grid cols-2">
@@ -208,11 +258,11 @@ function RLCNetworksTab() {
         <Select
           label="Component"
           value={mode}
-          onChange={v=>setMode(v as Mode)}
+          onChange={v => setMode(v as Mode)}
           options={[
-            {label:'Resistor', value:'Resistor'},
-            {label:'Capacitor', value:'Capacitor'},
-            {label:'Inductor', value:'Inductor'},
+            { label: 'Resistor', value: 'Resistor' },
+            { label: 'Capacitor', value: 'Capacitor' },
+            { label: 'Inductor', value: 'Inductor' },
           ]}
         />
 
@@ -266,11 +316,11 @@ function RLCNetworksTab() {
         <ResultCard rows={[
           {
             label: 'Parallel',
-            value: `${formatSI(Rpar, 'Ω')}  —  P=[${Ppar_each.map(p=>formatSI(p,'W')).join(', ')}]`
+            value: `${formatSI(Rpar, 'Ω')}  —  P=[${Ppar_each.map(p => formatSI(p, 'W')).join(', ')}]`
           },
           {
             label: 'Series',
-            value: `${formatSI(Rser, 'Ω')}  —  P=[${Pser_each.map(p=>formatSI(p,'W')).join(', ')}]`
+            value: `${formatSI(Rser, 'Ω')}  —  P=[${Pser_each.map(p => formatSI(p, 'W')).join(', ')}]`
           }
         ]} />
       )}
@@ -492,9 +542,9 @@ function NTCTab() {
   const B = parseSI(Beta) ?? 0;
   const Tol = parseSI(Tolerance) ?? 0;
   const TTar = parseSI(TTarget) ?? 0;
-  
+
   const TypicalR = R * Math.pow(2.71828, B * (1 / (TTar + 273.15) - 1 / (T + 273.15)));
-  const MinR = (1 - Tol / 100) * TypicalR ;
+  const MinR = (1 - Tol / 100) * TypicalR;
   const MaxR = (1 + Tol / 100) * TypicalR;
 
   return (
@@ -508,18 +558,18 @@ function NTCTab() {
       </div>
       <ResultCard rows={[
         {
-          label:'Typical resistance at 75 °C',
+          label: 'Typical resistance at 75 °C',
           value: `${formatSI(TypicalR, 'Ω')}`
         },
         {
-          label:'Min resistance',
+          label: 'Min resistance',
           value: `${formatSI(MinR, 'Ω')}`
         },
         {
-          label:'Max resistance',
+          label: 'Max resistance',
           value: `${formatSI(MaxR, 'Ω')}`
         }
-        ]} />
+      ]} />
     </div>
   );
 }
@@ -545,40 +595,40 @@ function DividerTab() {
       if (rlcSolveFor === 'R') out.Result = voltage * (val2 / (val1 + val2));
       if (rlcSolveFor === 'L') out.Result = voltage * (val2 / (val1 + val2));
       if (rlcSolveFor === 'C') out.Result = voltage * (val2 / (val1 + val2)); // FIXME
-    } catch {}
+    } catch { }
     return out;
   }, [rlcSolveFor, Voltage, Value1, Value2]);
 
   return (
     <div class="grid cols-2">
       <div class="flex flex-col gap-3">
-          <div class="tabs">
-            {(['R','L','C'] as RLC_Solver[]).map(k => (
-              <button class="tab-btn" aria-selected={rlcSolveFor===k} onClick={()=>setRlcSolveFor(k)}>{k}</button>
-            ))}
-          </div>
-          <div class="grid cols-2">
-            <SIField
-              label={<>{rlcSolveFor}<sub>1</sub></>}
-              value={Value1}
-              setValue={setValue_1}
-              placeholder="10k"
-              suffix={suffixMap[rlcSolveFor]}
-            />
-            <SIField
-              label={<>{rlcSolveFor}<sub>2</sub></>}
-              value={Value2}
-              setValue={setValue_2}
-              placeholder="10k"
-              suffix={suffixMap[rlcSolveFor]}
-            />
-            <SIField label="Voltage" value={Voltage} setValue={setVoltage} placeholder="3.3" suffix='V' />
-          </div>
+        <div class="tabs">
+          {(['R', 'L', 'C'] as RLC_Solver[]).map(k => (
+            <button class="tab-btn" aria-selected={rlcSolveFor === k} onClick={() => setRlcSolveFor(k)}>{k}</button>
+          ))}
         </div>
-        
-        <ResultCard rows={[
-          { label: <>V<sub>out</sub></>, value: formatSI(solved.Result, ' V') }
-        ]} />
+        <div class="grid cols-2">
+          <SIField
+            label={<>{rlcSolveFor}<sub>1</sub></>}
+            value={Value1}
+            setValue={setValue_1}
+            placeholder="10k"
+            suffix={suffixMap[rlcSolveFor]}
+          />
+          <SIField
+            label={<>{rlcSolveFor}<sub>2</sub></>}
+            value={Value2}
+            setValue={setValue_2}
+            placeholder="10k"
+            suffix={suffixMap[rlcSolveFor]}
+          />
+          <SIField label="Voltage" value={Voltage} setValue={setVoltage} placeholder="3.3" suffix='V' />
+        </div>
+      </div>
+
+      <ResultCard rows={[
+        { label: <>V<sub>out</sub></>, value: formatSI(solved.Result, ' V') }
+      ]} />
     </div>
   );
 }

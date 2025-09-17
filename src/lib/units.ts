@@ -70,3 +70,16 @@ export const batteries: Battery[] = [
     new Battery("Zinc-Air(650)", 650, 0.4, 1.4, 25, 0),
 ];
 
+// https://en.wikipedia.org/wiki/E_series_of_preferred_numbers
+export type Tolerance = {
+  label: string; percentage: string;
+};
+
+export const TOLERANCE_OPTIONS: Tolerance[] = [
+  { label: 'E12', percentage: '10' },
+  { label: 'E24', percentage: '5' },
+  { label: 'E48', percentage: '2' },
+  { label: 'E96', percentage: '1' },
+  { label: 'E192', percentage: '0.5' },
+  { label: 'E192+', percentage: '0.1' },
+];
