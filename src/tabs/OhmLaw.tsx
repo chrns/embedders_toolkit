@@ -12,12 +12,15 @@ import OhmLawTriangle from '@/ui/icons/OhmsIcon';
 
 type SolveFor = 'V' | 'I' | 'R' | 'P';
 
+const defaultV: string = "3.3";
+const defaultI: string = "100m";
+const defaultR: string = "4k7";
+
 export default function OhmsLaw() {
   const [solveFor, setSolveFor] = useState<SolveFor>('V');
-  const [amps, setAmps] = useState('1');
-  const [ohms, setOhms] = useState('12');
-  const [volts, setVolts] = useState('12');
-  const [watts, setWatts] = useState('12');
+  const [amps, setAmps] = useState(defaultI);
+  const [ohms, setOhms] = useState(defaultR);
+  const [volts, setVolts] = useState(defaultV);
   // Track which field was last edited, to allow auto-pick of solveFor
   const [lastEdited, setLastEdited] = useState<SolveFor | null>(null);
   const pickRemaining = (a: SolveFor, b: SolveFor): SolveFor =>
@@ -36,17 +39,17 @@ export default function OhmsLaw() {
     const I = parseSI(amps) ?? 0;
     const R = parseSI(ohms) ?? 0;
     const V = parseSI(volts) ?? 0;
-    const P = parseSI(watts) ?? 0;
+    const P = 0;
 
     let out = { V, I, R, P };
     try {
       if (solveFor === 'V') out.V = I * R;
       if (solveFor === 'I') out.I = V / (R || 1e-12);
       if (solveFor === 'R') out.R = V / (I || 1e-12);
-      if (solveFor === 'P') out.P = V * I;
+      out.P = I * I * R;
     } catch { }
     return out;
-  }, [solveFor, amps, ohms, volts, watts]);
+  }, [solveFor, amps, ohms, volts]);
 
   // Sub-tabs
   const [tab, setTab] = useState('led');
@@ -55,14 +58,9 @@ export default function OhmsLaw() {
       <div class="flex flex-col gap-4">
         <Panel>
           <h2>Ohm’s Law</h2>
-          <div class="grid cols-2">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <OhmLawTriangle />
-            </div>
-
-            <div class="vstack">
+          <div class="grid cols-1">
               <FixableInput
-                label="Ohms"
+                label="R"
                 value={ohms}
                 tolerance={5}
                 onChange={makeOnChange('R', setOhms)}
@@ -72,7 +70,7 @@ export default function OhmsLaw() {
                 onToggleFix={() => setSolveFor('R')}
               />
               <FixableInput
-                label="Volts"
+                label="V"
                 value={volts}
                 onChange={makeOnChange('V', setVolts)}
                 placeholder="e.g. 5, 3.3, 12V"
@@ -81,7 +79,7 @@ export default function OhmsLaw() {
                 onToggleFix={() => setSolveFor('V')}
               />
               <FixableInput
-                label="Amps"
+                label="I"
                 value={amps}
                 onChange={makeOnChange('I', setAmps)}
                 placeholder="e.g. 10m"
@@ -89,18 +87,8 @@ export default function OhmsLaw() {
                 isFixed={solveFor === 'I'}
                 onToggleFix={() => setSolveFor('I')}
               />
-              <FixableInput
-                label="Power"
-                value={watts}
-                onChange={makeOnChange('P', setWatts)}
-                placeholder="e.g. 10m"
-                suffix="A"
-                isFixed={solveFor === 'P'}
-                onToggleFix={() => setSolveFor('P')}
-              />
-            </div>
           </div>
-          
+
           <ResultCard rows={[
             { label: 'Ohms', value: formatSI(solved.R, 'Ω'), value_min: formatSI(solved.R * 0.9, ''), value_max: formatSI(solved.R * 1.1, '') },
             { label: 'Volts', value: formatSI(solved.V, 'V') },

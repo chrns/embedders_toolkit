@@ -156,11 +156,12 @@ body { padding-left: var(--safe-left); padding-right: var(--safe-right); }
   overflow: hidden;
 }
 .fixable-input:focus-within {
-  outline: 2px solid var(--accent);
+  outline: px solid var(--accent);
   outline-offset: 0;
 }
 .fixable-input input {
   flex: 1;
+  /* font-size: large; */
   border: none;
   background: var(--bg);
   color: var(--text);
@@ -193,6 +194,7 @@ body { padding-left: var(--safe-left); padding-right: var(--safe-right); }
   color: var(--text);
   padding: 8px 10px;
   appearance: none;
+  text-align: center;
 }
 .fixable-input select:focus {
   outline: none;

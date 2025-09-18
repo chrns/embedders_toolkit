@@ -30,7 +30,7 @@ export function FixableInput({
 
   return (
     <label class="flex items-center gap-4 w-full">
-      {label && <span class="text-right w-20 sm:w-24 shrink-0">{label}</span>}
+      {label && <span class="text-right w-5 sm:w-24 shrink-0">{label}</span>}
 
       <div class="fixable-input min-w-0 flex-1">
         {/* Поле ввода */}
